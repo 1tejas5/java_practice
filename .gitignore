@@ -1,0 +1,12 @@
+# build output
+out/
+*.class
+out-sources.txt
+sources.txt
+
+# IDE / OS files
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db

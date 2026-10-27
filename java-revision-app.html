@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Java Revision App - Mind Maps, Flashcards, Quiz</title>
+<style>
+  :root {
+    --bg: #f6f7fb; --panel: #ffffff; --text: #1f2430; --muted: #6b7280; --border: #e3e6ee;
+    --accent: #2563eb; --accent-soft: #e8efff; --good: #15803d; --good-soft: #e7f6ec;
+    --bad: #b91c1c; --bad-soft: #fdecec; --code-bg: #eef1f7;
+    --d0: #1d4ed8; --d1: #0f766e; --d2: #7c3aed; --d3: #b45309; --d4: #475569;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12141a; --panel: #1b1e27; --text: #e6e8ee; --muted: #9aa3b2; --border: #2c313d;
+      --accent: #6ea0ff; --accent-soft: #1f2a44; --good: #4ade80; --good-soft: #15291d;
+      --bad: #f87171; --bad-soft: #2e1717; --code-bg: #262b38;
+      --d0: #8ab4ff; --d1: #5eead4; --d2: #c4b5fd; --d3: #fcd34d; --d4: #cbd5e1;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Segoe UI", system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; }
+  header { background: var(--panel); border-bottom: 1px solid var(--border); padding: 14px 24px; display: flex; align-items: center; gap: 24px; flex-wrap: wrap; position: sticky; top: 0; z-index: 5; }
+  header h1 { font-size: 20px; margin: 0; }
+  nav button { border: 1px solid var(--border); background: transparent; color: var(--text); padding: 8px 16px; border-radius: 999px; cursor: pointer; font-size: 14px; margin-right: 6px; }
+  nav button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  main { max-width: 1100px; margin: 0 auto; padding: 24px; }
+  .hint { color: var(--muted); font-size: 14px; margin: 4px 0 16px; }
+  .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
+  .chip { border: 1px solid var(--border); background: var(--panel); color: var(--text); padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; }
+  .chip.active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  .btn { border: 1px solid var(--border); background: var(--panel); color: var(--text); padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 14px; }
+  .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .btn.good { background: var(--good-soft); color: var(--good); border-color: var(--good); }
+  .btn.bad { background: var(--bad-soft); color: var(--bad); border-color: var(--bad); }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; font-family: Consolas, "Cascadia Code", monospace; font-size: 0.92em; }
+  section.tab { display: none; }
+  section.tab.active { display: block; }
+
+  /* ---------- mind map ---------- */
+  .tree, .tree ul { list-style: none; margin: 0; padding-left: 22px; }
+  .tree { padding-left: 0; }
+  .tree li { position: relative; margin: 4px 0; }
+  .tree ul li::before { content: ""; position: absolute; left: -14px; top: 0; height: 100%; border-left: 2px solid var(--border); }
+  .tree ul li::after { content: ""; position: absolute; left: -14px; top: 15px; width: 12px; border-top: 2px solid var(--border); }
+  .tree ul li:last-child::before { height: 16px; }
+  .node { display: inline-block; padding: 4px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel); font-size: 14px; }
+  .has-kids > .node { cursor: pointer; font-weight: 600; }
+  .has-kids > .node::before { content: "\25BC"; color: var(--accent); font-size: 10px; margin-right: 6px; display: inline-block; }
+  .has-kids.collapsed > .node::before { content: "\25B6"; }
+  .has-kids.collapsed > .node::after { content: " (" attr(data-count) ")"; color: var(--muted); font-weight: 400; font-size: 12px; }
+  .has-kids.collapsed > ul { display: none; }
+  .node.d0 { border-left: 4px solid var(--d0); font-size: 17px; }
+  .node.d1 { border-left: 4px solid var(--d1); }
+  .node.d2 { border-left: 4px solid var(--d2); }
+  .node.d3 { border-left: 4px solid var(--d3); }
+  .node.d4 { border-left: 4px solid var(--d4); }
+
+  /* ---------- flashcards ---------- */
+  .card { min-height: 260px; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; cursor: pointer; padding: 32px; user-select: none; }
+  .card .tag { font-size: 12px; color: var(--accent); background: var(--accent-soft); padding: 2px 10px; border-radius: 999px; margin-bottom: 14px; }
+  .card .q { font-size: 21px; font-weight: 600; max-width: 760px; }
+  .card .a { font-size: 17px; margin-top: 18px; max-width: 760px; display: none; border-top: 1px dashed var(--border); padding-top: 16px; text-align: left; }
+  .card.flipped .a { display: block; }
+  .card .flip-hint { margin-top: 16px; color: var(--muted); font-size: 13px; }
+  .card.flipped .flip-hint { display: none; }
+  .card.known { box-shadow: inset 0 0 0 2px var(--good); }
+  .progress { height: 8px; background: var(--border); border-radius: 99px; overflow: hidden; flex: 1; min-width: 160px; }
+  .progress > div { height: 100%; background: var(--good); width: 0; transition: width .3s; }
+  .controls { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 16px; }
+  select { padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel); color: var(--text); }
+
+  /* ---------- quiz ---------- */
+  .opt { display: block; width: 100%; text-align: left; margin: 8px 0; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--panel); color: var(--text); cursor: pointer; font-size: 15px; }
+  .opt:hover:not(:disabled) { border-color: var(--accent); }
+  .opt.correct { background: var(--good-soft); border-color: var(--good); color: var(--good); font-weight: 600; }
+  .opt.wrong { background: var(--bad-soft); border-color: var(--bad); color: var(--bad); }
+  .why { margin-top: 12px; padding: 12px; background: var(--accent-soft); border-radius: 8px; display: none; }
+  .why.show { display: block; }
+  .qcode { font-family: Consolas, monospace; background: var(--code-bg); padding: 12px; border-radius: 8px; white-space: pre-wrap; margin: 10px 0; font-size: 14px; }
+  .score { font-size: 28px; font-weight: 700; }
+  kbd { border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; font-size: 12px; background: var(--panel); }
+</style>
+</head>
+<body>
+<header>
+  <h1>&#9749; Java Revision</h1>
+  <nav>
+    <button data-tab="maps" class="active">&#129504; Mind Maps</button>
+    <button data-tab="cards">&#127183; Flashcards</button>
+    <button data-tab="quiz">&#127919; Quiz</button>
+  </nav>
+</header>
+
+<main>
+  <!-- ======================= MIND MAPS ======================= -->
+  <section id="maps" class="tab active">
+    <div class="toolbar" id="mapTopics"></div>
+    <div class="toolbar">
+      <button class="btn primary" id="recallBtn">&#129300; Recall mode</button>
+      <button class="btn" id="expandBtn">Expand all</button>
+      <button class="btn" id="collapseBtn">Collapse all</button>
+    </div>
+    <p class="hint"><b>Recall mode</b> collapses everything. Before clicking a branch, say its children out loud, then click to check.
+      This "active recall" is the fastest way to make things stick.</p>
+    <div class="panel"><ul class="tree" id="tree"></ul></div>
+  </section>
+
+  <!-- ======================= FLASHCARDS ======================= -->
+  <section id="cards" class="tab">
+    <div class="toolbar">
+      <select id="deckSelect"></select>
+      <label><input type="checkbox" id="onlyUnknown"> only cards I don't know yet</label>
+      <button class="btn" id="shuffleBtn">&#128256; Shuffle</button>
+      <button class="btn" id="resetBtn">Reset progress</button>
+      <div class="progress" title="known cards in this deck"><div id="progressBar"></div></div>
+      <span id="progressText" class="hint" style="margin:0"></span>
+    </div>
+    <div class="panel card" id="card">
+      <span class="tag" id="cardTag"></span>
+      <div class="q" id="cardQ"></div>
+      <div class="a" id="cardA"></div>
+      <div class="flip-hint">click or press <kbd>Space</kbd> to reveal the answer</div>
+    </div>
+    <div class="controls">
+      <button class="btn" id="prevBtn">&#8592; Prev</button>
+      <button class="btn bad" id="againBtn">&#128533; Again <kbd>1</kbd></button>
+      <button class="btn good" id="gotBtn">&#9989; Got it <kbd>2</kbd></button>
+      <button class="btn" id="nextBtn">Next &#8594;</button>
+    </div>
+    <p class="hint" style="text-align:center">Keys: <kbd>Space</kbd> flip &middot; <kbd>&#8592;</kbd>/<kbd>&#8594;</kbd> navigate &middot; <kbd>1</kbd> again &middot; <kbd>2</kbd> got it. Progress is saved in this browser.</p>
+  </section>
+
+  <!-- ======================= QUIZ ======================= -->
+  <section id="quiz" class="tab">
+    <div class="panel" id="quizBox"></div>
+  </section>
+</main>
+
+<script>
+// =====================================================================================
+//  DATA: MIND MAPS (indentation = depth, 2 spaces per level)
+// =====================================================================================
+const MAPS = {
+"Big Picture": `
+JAVA
+  Basics: JDK/JRE/JVM, 8 primitives, casting, operators, control flow, arrays, methods
+  OOP: class/object, A PIE pillars, constructors, static, abstract vs interface, Object methods
+  Core APIs: String (immutable, pool), wrappers (cache), Math/BigDecimal, enums
+  Exceptions: checked vs unchecked, try/catch/finally, try-with-resources, custom
+  Generics: type safety, bounds, wildcards (PECS), type erasure
+  Collections: List, Set, Queue, Map, HashMap internals, Comparable vs Comparator
+  Functional: lambdas, functional interfaces, method refs, streams, collectors, Optional
+  Concurrency: threads, synchronized, volatile, atomics, locks, executors, CompletableFuture, virtual threads
+  JVM: class loading, heap/stack/metaspace, generational GC, G1/ZGC, memory leaks
+  I/O: byte vs char streams, NIO.2 Files/Path, serialization
+  Modern Java: var, text blocks, switch expressions, records, sealed, pattern matching
+  Design: SOLID, creational, structural, behavioral patterns
+  More APIs: annotations, reflection, java.time, JDBC
+`,
+"01 Basics": `
+JAVA BASICS
+  Platform
+    JDK = JRE + tools (javac, jar, jshell, jdb)
+    JRE = JVM + core libraries
+    JVM = runs bytecode (platform dependent)
+    .java -> javac -> .class bytecode -> JVM (interpreter + JIT)
+  Variables
+    local: stack, NO default value
+    instance: inside the object (heap), default values
+    static: one per class, default values
+  Primitive types (8)
+    byte 1 / short 2 / int 4 / long 8 bytes
+    float 4 / double 8 bytes
+    char 2 bytes (UTF-16, unsigned)
+    boolean (JVM dependent)
+  Casting
+    widening (auto): byte -> short -> int -> long -> float -> double
+    narrowing (explicit cast): may lose data, (int)3.99 = 3
+    promotion: byte + byte = int; x += 1 hides a cast
+    overflow is silent: MAX_VALUE + 1 = MIN_VALUE
+  Operators
+    i++ (use then add) vs ++i (add then use)
+    && || short-circuit; & | evaluate both
+    >> keeps sign, >>> fills 0
+    ternary promotes both branches
+  Control flow
+    if / else if / else
+    switch: classic (fall-through), arrow, expression with yield
+    switch types: byte short char int (+wrappers), String, enum, patterns (21)
+    loops: for, while, do-while (runs once), for-each
+    break, continue, labeled break
+  Arrays
+    fixed size, objects on heap, .length field
+    2D and jagged arrays
+    Arrays.toString / sort / binarySearch / fill / copyOf / asList
+  Methods
+    ALWAYS pass-by-value (references copied for objects)
+    overloading: Exact > Widening > Boxing > Varargs
+    varargs: one, last parameter
+    recursion needs a base case (else StackOverflowError)
+`,
+"02 OOP": `
+OOP
+  Class & Object
+    class = blueprint, object = instance on heap
+    state + behaviour + identity
+    constructors: no return type, default only if none written
+    this(...) / super(...) must be first
+  static
+    belongs to class, one copy
+    static block runs once at class load
+    no this; cannot touch instance members directly
+  Init order
+    Parent static -> Child static (once)
+    Parent instance init + constructor
+    Child instance init + constructor
+  A - Abstraction
+    show WHAT, hide HOW
+    abstract class: state, constructors, abstract + concrete methods
+    interface: contract; default/static (8), private (9)
+  P - Polymorphism
+    compile time = overloading
+    runtime = overriding (dynamic dispatch)
+    fields & static methods resolved by REFERENCE type
+    upcast auto; downcast with instanceof pattern
+  I - Inheritance
+    IS-A, extends, single class only
+    diamond problem -> interfaces; X.super.m()
+    super: constructor, method, field
+    not inherited: constructors, private access
+  E - Encapsulation
+    private fields + validated public methods
+    capsule / ATM analogy
+  Override rules
+    same signature
+    return same or covariant
+    access same or wider
+    checked exceptions same or narrower
+    cannot override static, final, private
+  Modifiers
+    private < default < protected < public
+    final: constant / no override / no extend
+  Object class
+    equals + hashCode contract (override both!)
+    toString, getClass, clone (shallow), wait/notify
+  Relationships
+    IS-A (inheritance) vs HAS-A
+    aggregation (weak) vs composition (strong)
+    prefer composition over inheritance
+  Nested classes
+    static nested, inner, local, anonymous
+  Immutable class
+    final class, private final fields, no setters, defensive copies
+`,
+"03 Strings & Enums": `
+STRINGS / WRAPPERS / ENUMS
+  String
+    immutable (Security, Pool, Thread-safe, Hash cache)
+    literals pooled; new String() -> heap
+    == identity vs equals content
+    compile-time constants folded: "Ja"+"va" == "Java"
+    split / replaceAll use REGEX
+  StringBuilder vs StringBuffer
+    Builder: fast, not synchronized
+    Buffer: synchronized, legacy
+    use Builder in loops
+  Wrappers
+    autoboxing Integer.valueOf, unboxing intValue
+    Integer cache -128..127 (== trap)
+    unboxing null -> NPE
+    remove(int index) vs remove(Object)
+  Math & money
+    Math.round(-2.5) = -2 (floor(x + 0.5))
+    BigDecimal from String, compareTo for equality
+    BigInteger for huge numbers
+  Enums
+    fixed set of singleton constants
+    fields, private constructor, methods
+    constant-specific bodies (abstract methods)
+    values(), valueOf(), ordinal(), name()
+    EnumSet, EnumMap, enum singleton
+`,
+"04 Exceptions": `
+EXCEPTIONS
+  Hierarchy
+    Throwable
+      Error: OutOfMemoryError, StackOverflowError (do not catch)
+      Exception: checked (IOException, SQLException, InterruptedException)
+        RuntimeException = unchecked (NPE, IllegalArgument, ClassCast, Arithmetic)
+  Keywords
+    try / catch / finally
+    throw (do it) vs throws (declare it)
+  Features
+    multi-catch A | B
+    try-with-resources: AutoCloseable, reverse close order
+    suppressed exceptions from close()
+    chaining: new X(msg, cause)
+  Rules
+    catch specific before general
+    finally always runs (except System.exit, crash)
+    return in finally overrides everything
+    override cannot add broader checked exceptions
+  Custom exceptions
+    extends Exception = checked (caller must handle)
+    extends RuntimeException = unchecked (bugs, bad input)
+  Best practices
+    never swallow; log OR rethrow
+    keep the cause when wrapping
+    restore interrupt flag
+`,
+"05 Generics": `
+GENERICS
+  Why
+    compile-time type safety
+    no casts
+    reusable algorithms
+  Syntax
+    class Box<T>, interface Repo<T, ID>
+    method: static <T> T first(List<T> l)
+    diamond: new ArrayList<>()
+  Bounds
+    <T extends Number>
+    <T extends Number & Comparable<T>>
+  Wildcards
+    List<?>: read as Object
+    ? extends T: producer, read only
+    ? super T: consumer, write T
+    PECS: Producer Extends, Consumer Super
+  Invariance
+    List<Integer> is NOT a List<Number>
+    arrays are covariant -> ArrayStoreException
+  Type erasure
+    no new T(), no new T[]
+    no instanceof List<String>
+    no primitives as type args
+    no overloads differing only by type args
+`,
+"06 Collections": `
+COLLECTIONS
+  List (order, index, duplicates)
+    ArrayList: array, get O(1), default choice, grows 1.5x
+    LinkedList: nodes, get O(n), also a Deque
+  Set (unique)
+    HashSet: O(1), no order (backed by HashMap)
+    LinkedHashSet: insertion order
+    TreeSet: sorted, O(log n), uses compareTo
+  Queue / Deque
+    offer/poll/peek (polite) vs add/remove/element (throw)
+    ArrayDeque: best stack and queue
+    PriorityQueue: min-heap, iteration not sorted
+  Map (key -> value)
+    HashMap: O(1), 1 null key
+    LinkedHashMap: insertion/access order (LRU)
+    TreeMap: sorted keys, floor/ceiling
+    ConcurrentHashMap: thread-safe, no nulls
+  HashMap internals
+    table of 16 buckets
+    index = (n-1) & (h ^ h>>>16)
+    hashCode -> bucket, equals -> key
+    collision chain -> tree at 8 (table >= 64)
+    resize x2 when size > 0.75 x capacity
+  Ordering
+    Comparable: compareTo, natural, inside class
+    Comparator: compare, custom, comparing().thenComparing().reversed()
+  Iteration
+    fail-fast -> ConcurrentModificationException
+    fail-safe: CopyOnWriteArrayList, ConcurrentHashMap
+    safe removal: Iterator.remove, removeIf
+  Immutable
+    List.of / Set.of / Map.of (no nulls)
+    List.copyOf snapshot
+    Arrays.asList fixed size; unmodifiableList is a view
+`,
+"07 Functional": `
+FUNCTIONAL JAVA
+  Lambda
+    (params) -> body
+    implements a functional interface (1 abstract method)
+    captures effectively final locals
+    this = enclosing object
+  Functional interfaces
+    Predicate: test -> boolean
+    Function: apply -> R
+    Consumer: accept -> void
+    Supplier: get -> T
+    Unary/BinaryOperator, Bi-versions, Int/Long/Double primitives
+  Method references
+    static: Integer::parseInt
+    bound: System.out::println
+    unbound: String::toUpperCase
+    constructor: ArrayList::new
+  Streams
+    Source -> Intermediate (lazy) -> Terminal (eager)
+    single use; no terminal = nothing runs
+    filter, map, flatMap, distinct, sorted, limit, skip, peek
+    collect, toList, reduce, count, min/max, anyMatch, findFirst
+    map 1->1 vs flatMap 1->many
+  Collectors
+    groupingBy (+ counting, averaging, mapping)
+    partitioningBy -> true/false
+    toMap needs merge fn for duplicates
+    joining, summarizing, teeing
+  Optional
+    of / ofNullable / empty
+    map, flatMap, filter, ifPresentOrElse
+    orElse (eager) vs orElseGet (lazy), orElseThrow
+    use as return type only
+`,
+"08 Concurrency": `
+CONCURRENCY
+  Create threads
+    extends Thread / Runnable / Callable
+    ExecutorService (preferred)
+    virtual threads (Java 21)
+    start() creates thread; run() does not
+  States
+    NEW, RUNNABLE, BLOCKED, WAITING, TIMED_WAITING, TERMINATED
+  Problems
+    race condition: count++ not atomic
+    visibility: stale caches
+    deadlock: Mutual excl, Hold&wait, No preemption, Circular wait
+    livelock, starvation
+  Tools
+    synchronized: method/block/static, reentrant
+    volatile: visibility only
+    Atomic*: CAS, lock-free
+    ReentrantLock: tryLock, fair, Condition
+    wait/notify: in synchronized, in a while loop
+  Executors
+    fixed, cached, single, scheduled, virtual-per-task
+    ThreadPoolExecutor: core -> queue -> max -> reject
+    Future: get, cancel, isDone
+    CompletableFuture: thenApply, thenCompose, thenCombine, allOf, exceptionally
+  Concurrent utilities
+    ConcurrentHashMap, CopyOnWriteArrayList, BlockingQueue
+    CountDownLatch (events), CyclicBarrier (each other), Semaphore (permits)
+    ThreadLocal (remove in pools!)
+  Virtual threads
+    cheap, millions, for blocking I/O
+    not faster for CPU work; don't pool
+`,
+"09 JVM & GC": `
+JVM / MEMORY / GC
+  Class loading
+    Bootstrap -> Platform -> Application
+    parent delegation (security)
+    Load -> Link (Verify, Prepare, Resolve) -> Initialize
+  Memory areas
+    Heap: objects, String pool (shared)
+    Metaspace: class metadata (native memory)
+    Stack: frames, locals, references (per thread)
+    PC register, native method stack (per thread)
+  Generations
+    Eden -> Survivor S0/S1 -> Old
+    minor GC (young) vs major/full GC
+    most objects die young
+  GC
+    eligible = unreachable from GC roots
+    mark -> sweep -> compact
+    Serial, Parallel, G1 (default), ZGC, Shenandoah
+    System.gc() is only a hint
+  References
+    strong, soft (caches), weak (WeakHashMap), phantom
+  Errors & leaks
+    OutOfMemoryError vs StackOverflowError
+    leaks: static collections, unclosed resources, listeners, ThreadLocal
+  Tools
+    jps, jstack, jmap, jcmd, jstat, VisualVM, JFR
+    -Xms -Xmx -Xss -XX:+UseG1GC
+`,
+"10 I/O": `
+I/O
+  java.io
+    byte streams: InputStream / OutputStream (binary)
+    char streams: Reader / Writer (text)
+    Buffered* wrappers = Decorator pattern
+    InputStreamReader bridges bytes -> chars
+  NIO.2 (prefer)
+    Path.of, resolve, getParent, normalize
+    Files.readString / writeString / readAllLines
+    Files.lines (lazy, close it) / walk / copy / move / delete
+  Always
+    try-with-resources
+    specify charset (UTF-8 default since 18)
+  Serialization
+    implements Serializable (marker)
+    serialVersionUID
+    transient skipped, static not saved
+    non-serializable parent no-arg constructor runs
+    prefer JSON for untrusted data
+`,
+"11 Modern Java": `
+MODERN JAVA
+  var (10)
+    locals with initializer only
+    not fields/params/returns, not null
+  Text blocks (15)
+    triple-quote strings, indentation stripped
+  Switch expressions (14)
+    arrows, multiple labels, yield
+  Records (16)
+    final fields, canonical ctor, accessors, equals/hashCode/toString
+    compact constructor for validation
+    cannot extend, no extra instance fields
+    shallowly immutable -> List.copyOf
+  Sealed (17)
+    permits A, B
+    subclasses: final / sealed / non-sealed
+  Pattern matching
+    instanceof String s && s.isEmpty()
+    switch: case Integer i when i > 10
+    case null; specific before general
+    record patterns: case Point(int x, int y)
+    sealed + switch = exhaustive, no default
+  Java 21 LTS
+    virtual threads
+    sequenced collections: getFirst, getLast, reversed
+  LTS line
+    8, 11, 17, 21, 25
+`,
+"12 Design": `
+DESIGN
+  SOLID
+    S: single responsibility
+    O: open for extension, closed for modification
+    L: Liskov substitution (Square/Rectangle trap)
+    I: interface segregation
+    D: dependency inversion (inject abstractions)
+  Creational
+    Singleton: enum best; holder; DCL + volatile
+    Factory: hide new / concrete types
+    Abstract Factory: families of objects
+    Builder: many optional params, immutable result
+    Prototype: copy an object
+  Structural
+    Adapter: convert interface (InputStreamReader)
+    Decorator: wrap to add behaviour (java.io)
+    Proxy: control access (Spring AOP)
+    Facade: simple front for subsystem
+    Composite: tree of parts and wholes
+    Flyweight: share instances (Integer cache)
+  Behavioral
+    Strategy: swap algorithms (Comparator)
+    Observer: publish/subscribe (listeners)
+    Template Method: fixed skeleton, hooks
+    Command: request as object (Runnable, undo)
+    Chain of Responsibility: handler chain (filters)
+    State: behaviour per internal state
+`,
+"13 More APIs": `
+MORE APIs
+  Annotations
+    @Override, @Deprecated, @SuppressWarnings, @FunctionalInterface
+    @Retention: SOURCE, CLASS (default), RUNTIME
+    @Target: TYPE, METHOD, FIELD ...
+    custom: @interface + read via reflection
+  Reflection
+    Class: X.class, obj.getClass(), Class.forName
+    getDeclaredFields / Methods / Constructors
+    setAccessible, invoke, newInstance
+    used by Spring, Hibernate, JUnit, Jackson
+    cost: slow, breaks encapsulation
+  java.time
+    LocalDate, LocalTime, LocalDateTime (no zone)
+    ZonedDateTime, Instant (UTC)
+    Period (dates) vs Duration (time)
+    ChronoUnit.between, TemporalAdjusters
+    DateTimeFormatter (thread-safe), immutable classes
+  JDBC
+    Connection -> PreparedStatement -> ResultSet
+    PreparedStatement prevents SQL injection
+    executeQuery / executeUpdate / batch
+    transactions: autoCommit false, commit, rollback
+    ACID, isolation levels, connection pool (HikariCP)
+`
+};
+
+// =====================================================================================
+//  DATA: FLASHCARDS
+// =====================================================================================
+const CARDS = [
+// ---- Basics
+["Basics","JDK vs JRE vs JVM?","JVM executes bytecode. JRE = JVM + core libraries. JDK = JRE + dev tools (`javac`, `jar`, `jshell`). JDK &sup; JRE &sup; JVM."],
+["Basics","What makes Java platform independent?","`javac` produces bytecode that runs on any OS that has a JVM. The JVM is platform-specific; the bytecode is not (WORA)."],
+["Basics","The 8 primitives and their sizes?","byte 1, short 2, int 4, long 8, float 4, double 8, char 2, boolean (JVM dependent). Trick: **1-2-4-8, 4-8, 2**."],
+["Basics","Do local variables get default values?","No. They must be initialized before use (compile error otherwise). Fields and array elements get defaults (0, false, null)."],
+["Basics","Output of `1 + 2 + \"3\" + 4 + 5`?","`3345`. Evaluated left to right: 3, then \"33\", then string concatenation from there on."],
+["Basics","Does `byte b = 10; b = b + 1;` compile?","No. `b + 1` is an int. `b += 1` compiles because compound assignment includes a cast."],
+["Basics","`int i = 0; i = i++;` What is i?","`0`. The old value is saved, i is incremented, then the old value is assigned back."],
+["Basics","`&&` vs `&`?","`&&` short-circuits (skips the right side when the left is false). `&` always evaluates both sides."],
+["Basics","`>>` vs `>>>`?","`>>` is an arithmetic shift (keeps the sign bit). `>>>` is a logical shift (fills with 0)."],
+["Basics","Which types can a classic switch use?","byte, short, char, int (+ wrappers), String, enum. Java 21 patterns allow any reference type. Never long/float/double/boolean."],
+["Basics","Is Java pass-by-value or pass-by-reference?","Always pass-by-value. For objects the **reference** is copied: you can mutate the object but can't re-point the caller's variable."],
+["Basics","Overload resolution order?","Exact match, then Widening, then Boxing, then Varargs. \"Every Wise Boy Votes\". `f(long)` beats `f(Integer)` for `f(5)`."],
+["Basics","`arr.length` vs `str.length()` vs `list.size()`?","Arrays have a length **field**, Strings a `length()` method, Collections a `size()` method."],
+// ---- OOP
+["OOP","The 4 pillars of OOP?","**A PIE**: Abstraction, Polymorphism, Inheritance, Encapsulation."],
+["OOP","Overloading vs overriding?","Overloading: same name, different parameters, chosen at compile time. Overriding: same signature in a subclass, chosen at runtime (dynamic dispatch)."],
+["OOP","Rules for overriding a method?","Same signature; return type same or covariant; access same or wider; checked exceptions same, narrower or none. Can't override static, final or private methods."],
+["OOP","`Parent p = new Child();` Which field / instance method / static method is used?","Field: Parent's (reference type). Instance method: Child's (object type). Static method: Parent's (hidden, not overridden)."],
+["OOP","Abstract class vs interface?","Abstract class: state, constructors, any methods, extend only ONE (IS-A). Interface: constants + abstract/default/static/private methods, implement MANY (CAN-DO)."],
+["OOP","Can an abstract class have a constructor?","Yes. Subclasses call it via `super(...)`. You just can't instantiate the abstract class directly."],
+["OOP","Why no multiple inheritance of classes?","The diamond problem (ambiguous inherited implementation). Interfaces are allowed; clashing defaults must be overridden, optionally calling `A.super.m()`."],
+["OOP","Initialization order with inheritance?","Parent static, then Child static (once, at class load). Then per object: Parent instance init + constructor, then Child instance init + constructor."],
+["OOP","Access modifiers from narrowest to widest?","private, then default (package), then protected (package + subclasses), then public. \"Me, House, Family, World\"."],
+["OOP","Three uses of `final`?","Variable: can't be reassigned (the object it refers to may still change). Method: can't be overridden. Class: can't be extended."],
+["OOP","The equals/hashCode contract?","Equal objects MUST have equal hash codes. Equal hash codes do NOT imply equality. Override both, or HashMap/HashSet break."],
+["OOP","How to write an immutable class?","final class, private final fields, no setters, defensive copies in and out, everything set in the constructor. Or use a record (+ copy mutable components)."],
+["OOP","Aggregation vs composition?","Both are HAS-A. Aggregation: the part can live on its own (Department-Teacher). Composition: the part dies with the whole (House-Room)."],
+["OOP","Why prefer composition over inheritance?","Looser coupling, behaviour can be swapped at runtime, no fragile base class, no deep hierarchies, easier testing."],
+["OOP","The 4 kinds of nested classes?","Static nested, inner (member, needs an outer instance), local (inside a method), anonymous."],
+["OOP","Why avoid calling an overridable method from a constructor?","The child's override runs BEFORE the child's fields are initialized, so it sees null/0."],
+["OOP","Can a static method be overridden?","No. It is hidden: the call is resolved by the reference type at compile time."],
+// ---- Strings
+["Strings","Why is String immutable?","**SPTH**: Security, Pool sharing, Thread-safety, HashCode caching (reliable map keys)."],
+["Strings","`\"Ja\" + \"va\" == \"Java\"`? And with `String p = \"Ja\"; p + \"va\" == \"Java\"`?","`true` (folded at compile time into the pooled literal) and `false` (runtime concatenation makes a new object). With `final p` it is true again."],
+["Strings","How many objects does `new String(\"hi\")` create?","One or two: always a new heap object, plus the \"hi\" literal in the pool if it is not already there."],
+["Strings","String vs StringBuilder vs StringBuffer?","String is immutable. StringBuilder is mutable and fast (not synchronized). StringBuffer is mutable and synchronized (legacy, slower)."],
+["Strings","What is the Integer cache?","`Integer.valueOf` (autoboxing) caches -128..127, so `==` works inside that range and usually fails outside it. Always use `equals`."],
+["Strings","`Integer x = null; int y = x;`?","NullPointerException: unboxing calls `x.intValue()`."],
+["Strings","`list.remove(1)` on a `List<Integer>`?","Removes the element at **index** 1. To remove the value 1: `list.remove(Integer.valueOf(1))`."],
+["Strings","`\"a.b\".split(\".\")`?","An empty array. `split` takes a REGEX and `.` matches any char. Use `split(\"\\\\.\")`."],
+["Strings","Why build BigDecimal from a String?","`new BigDecimal(0.1)` keeps the binary imprecision (0.1000000000000000055...). `new BigDecimal(\"0.1\")` is exact."],
+["Strings","`new BigDecimal(\"2.0\").equals(new BigDecimal(\"2.00\"))`?","false: equals compares scale too. Use `compareTo(...) == 0` for numeric equality."],
+["Strings","Can an enum extend a class? Implement an interface? Have a public constructor?","No (it already extends Enum). Yes. No (enum constructors are always private)."],
+// ---- Exceptions
+["Exceptions","Checked vs unchecked exceptions?","Checked (Exception, not RuntimeException): the compiler forces catch/declare; external failures like IOException. Unchecked (RuntimeException): usually bugs like NPE."],
+["Exceptions","Error vs Exception?","Error = serious JVM trouble (OutOfMemoryError, StackOverflowError), don't catch. Exception = application conditions you may handle."],
+["Exceptions","`try { return 1; } finally { return 2; }` returns?","`2`. A return in finally overrides the try's return, and even swallows exceptions. Never do this."],
+["Exceptions","When does finally NOT run?","`System.exit()`, JVM crash/kill, infinite loop or deadlock inside try, daemon thread when the JVM exits."],
+["Exceptions","throw vs throws?","`throw` actually throws an exception object. `throws` declares in the signature which checked exceptions may escape."],
+["Exceptions","try-with-resources: closing order and suppressed exceptions?","Resources close in REVERSE order of declaration. If both the body and `close()` throw, the body's exception propagates and the close one is attached via `getSuppressed()`."],
+["Exceptions","Rule for the order of catch blocks?","Most specific first. A superclass catch before a subclass catch is a compile error (unreachable)."],
+["Exceptions","Exceptions when overriding?","The override may throw the same, narrower or no checked exceptions, never broader or new ones. Unchecked are unrestricted."],
+["Exceptions","final vs finally vs finalize?","final: keyword (constant / no override / no extend). finally: block that always runs. finalize: deprecated GC hook on Object."],
+["Exceptions","ClassNotFoundException vs NoClassDefFoundError?","CNFE (checked): loading a class by NAME at runtime fails (`Class.forName`). NCDFE (Error): the class existed at compile time but is missing at runtime."],
+// ---- Generics
+["Generics","Three benefits of generics?","Compile-time type safety, no casts, reusable type-independent code."],
+["Generics","What does PECS mean?","**Producer Extends, Consumer Super**. Read from `? extends T`, write into `? super T`."],
+["Generics","Is `List<Integer>` a `List<Number>`?","No, generics are invariant (otherwise you could add a Double to a List<Integer>). Arrays ARE covariant, which causes ArrayStoreException."],
+["Generics","What is type erasure? Consequences?","Type parameters are removed after compilation (replaced by bounds/Object + casts). So: no `new T()`, no `new T[]`, no `instanceof List<String>`, no primitives as type args."],
+["Generics","Can you add an Integer to a `List<? extends Number>`?","No (only null). The list might be a List<Double>. You can READ Numbers from it."],
+["Generics","Syntax of a generic method?","Declare the type parameter before the return type: `static <T> T first(List<T> list)`."],
+["Generics","How do you create a T inside a generic method?","Pass a factory: `<T> T make(Supplier<T> s)` called with `ArrayList::new`, or pass a `Class<T>` and use reflection."],
+// ---- Collections
+["Collections","How does HashMap.put work?","hash = h ^ (h>>>16), index = (n-1) & hash. Empty bucket: new node. Else walk the bucket: same hash + equals means replace the value, otherwise append. Treeify at 8. Resize x2 past 0.75 load."],
+["Collections","HashMap's magic numbers?","Capacity 16, load factor 0.75, treeify at 8 nodes (if table >= 64), untreeify at 6. One null key, stored in bucket 0."],
+["Collections","HashMap vs Hashtable vs ConcurrentHashMap?","HashMap: not thread-safe, nulls OK. Hashtable: legacy, every method synchronized, no nulls. ConcurrentHashMap: fine-grained locking + CAS, high concurrency, no nulls."],
+["Collections","ArrayList vs LinkedList?","ArrayList: array, get O(1), compact, the default. LinkedList: nodes, get O(n), O(1) at the ends, more memory. Prefer ArrayDeque for queues."],
+["Collections","HashSet vs LinkedHashSet vs TreeSet?","Hash = Hurry (O(1), no order). Linked = Line (insertion order). Tree = Tidy (sorted, O(log n), uses compareTo)."],
+["Collections","How does HashSet guarantee uniqueness?","It's backed by a HashMap: elements are keys with a dummy value, so hashCode() + equals() decide duplicates."],
+["Collections","Comparable vs Comparator?","Comparable: `compareTo`, one natural order inside the class. Comparator: `compare`, unlimited external orders, `comparing().thenComparing().reversed()`."],
+["Collections","Fail-fast vs fail-safe iterators?","Fail-fast (ArrayList, HashMap) throws ConcurrentModificationException on structural change (modCount). Fail-safe/weakly consistent (CopyOnWriteArrayList, ConcurrentHashMap) never throw."],
+["Collections","How to remove elements while iterating?","`iterator.remove()`, `collection.removeIf(predicate)`, or a backwards index loop. Never `list.remove()` inside for-each."],
+["Collections","Why should HashMap keys be immutable?","A changed key gets a new hashCode, so lookups search the wrong bucket: the entry is lost (wrong results + memory leak)."],
+["Collections","How does ArrayList grow?","Default capacity 10 (allocated lazily). When full it grows by 1.5x (old + old/2), copying into a new array."],
+["Collections","offer/poll/peek vs add/remove/element?","Same operations. offer/poll/peek return false/null on failure (polite); add/remove/element throw (loud)."],
+["Collections","What should replace `Stack`?","`ArrayDeque` with `push`/`pop`/`peek`. Stack extends the synchronized, legacy Vector."],
+["Collections","How to build an LRU cache quickly?","Extend `LinkedHashMap` with accessOrder = true and override `removeEldestEntry` to return `size() > capacity`."],
+["Collections","`List.of` vs `Arrays.asList` vs `Collections.unmodifiableList`?","List.of: truly immutable, no nulls. Arrays.asList: fixed size, `set` works, backed by the array. unmodifiableList: read-only VIEW, source changes show through."],
+["Collections","What decides uniqueness in a TreeSet?","`compareTo`/`compare`, NOT equals. A comparator by length treats \"cat\" and \"dog\" as duplicates."],
+// ---- Functional
+["Functional","What is a functional interface?","An interface with exactly ONE abstract method (defaults/statics don't count). Can be implemented with a lambda. `@FunctionalInterface` enforces it."],
+["Functional","Predicate / Function / Consumer / Supplier?","Predicate `test` gives boolean. Function `apply` gives R. Consumer `accept` gives void. Supplier `get()` gives T. \"Tests, transforms, eats, gives\"."],
+["Functional","The 4 kinds of method references?","Static `Integer::parseInt`, bound `System.out::println`, unbound `String::toUpperCase`, constructor `ArrayList::new`."],
+["Functional","Intermediate vs terminal operations?","Intermediate (filter, map, sorted...) return a Stream and are LAZY. Terminal (collect, forEach, count...) produce a result and trigger execution."],
+["Functional","What does stream laziness mean?","Nothing runs until a terminal operation. Elements then flow one at a time, enabling short-circuiting (findFirst, limit) and infinite streams."],
+["Functional","map vs flatMap?","map: 1 to 1. flatMap: each element to a stream, then flattened (`List<List<T>>` to `Stream<T>`). \"map wraps, flatMap unwraps\"."],
+["Functional","groupingBy vs partitioningBy?","groupingBy: any key, `Map<K, List<T>>` (+ downstream collectors). partitioningBy: a predicate, always two groups `Map<Boolean, List<T>>`."],
+["Functional","`Collectors.toMap` with duplicate keys?","IllegalStateException. Add a merge function: `toMap(k, v, (a, b) -> a)`."],
+["Functional","orElse vs orElseGet?","`orElse(x)` evaluates x ALWAYS (eager). `orElseGet(supplier)` calls it only when empty (lazy): use it for expensive defaults."],
+["Functional","Optional best practices?","Use it as a RETURN type; chain map/filter/orElse. Don't use it for fields, parameters or collections; never call `get()` blindly; never return null for an Optional."],
+["Functional","findFirst vs findAny?","findFirst respects encounter order. findAny may return any element (faster in parallel streams)."],
+["Functional","Why must captured locals be effectively final?","The lambda captures a COPY of the value and may run later or on another thread. Mutation would make it inconsistent/racy."],
+["Functional","What does `this` mean in a lambda vs an anonymous class?","Lambda: the enclosing instance. Anonymous class: the anonymous object itself."],
+["Functional","Second highest number with streams?","`nums.stream().distinct().sorted(Comparator.reverseOrder()).skip(1).findFirst()`"],
+// ---- Concurrency
+["Concurrency","Ways to create a thread?","Extend Thread; implement Runnable; Callable with an ExecutorService; virtual threads (`Thread.ofVirtual()`, Java 21). Prefer executors."],
+["Concurrency","start() vs run()?","start() creates a new thread which calls run(). Calling run() directly runs on the current thread. start() twice throws IllegalThreadStateException."],
+["Concurrency","The 6 thread states?","NEW, RUNNABLE, BLOCKED (waiting for a monitor), WAITING, TIMED_WAITING, TERMINATED."],
+["Concurrency","sleep() vs wait()?","sleep: Thread method, KEEPS the lock, no synchronized needed. wait: Object method, RELEASES the lock, must be inside synchronized, woken by notify."],
+["Concurrency","Why is count++ not thread-safe? Fixes?","It is read + add + write; threads interleave and lose updates. Fix with synchronized, AtomicInteger, ReentrantLock (or LongAdder)."],
+["Concurrency","What does volatile guarantee?","Visibility and ordering of reads/writes across threads. NOT atomicity: `volatile x; x++` is still a race."],
+["Concurrency","What does synchronized lock on?","Instance method: `this`. Static method: the Class object. Block: whatever object you pass. Locks are reentrant."],
+["Concurrency","Deadlock: 4 conditions and the usual fix?","\"My House Never Collapses\": Mutual exclusion, Hold and wait, No preemption, Circular wait. Fix: consistent lock ordering (or tryLock with timeout)."],
+["Concurrency","Common thread pool types?","newFixedThreadPool, newCachedThreadPool, newSingleThreadExecutor, newScheduledThreadPool, newVirtualThreadPerTaskExecutor (21)."],
+["Concurrency","execute() vs submit()?","execute(Runnable): no result, exceptions go to the uncaught handler. submit(): returns a Future; exceptions surface as ExecutionException from get()."],
+["Concurrency","thenApply vs thenCompose?","thenApply transforms the value (map). thenCompose chains a function returning another CompletableFuture and flattens it (flatMap)."],
+["Concurrency","CountDownLatch vs CyclicBarrier vs Semaphore?","Latch: wait for N events, one-shot. Barrier: N threads wait for EACH OTHER, reusable. Semaphore: N permits to limit concurrent access."],
+["Concurrency","What are virtual threads good and bad for?","Good: huge numbers of BLOCKING tasks (HTTP, DB) with simple code. Bad: CPU-bound work (no speed-up), pooling them, long blocking inside synchronized on Java 21 (pinning)."],
+["Concurrency","ThreadPoolExecutor task flow?","Fewer than core threads: new thread. Otherwise queue it. Queue full and fewer than max: extra thread. Else REJECT (Abort, CallerRuns, Discard, DiscardOldest)."],
+["Concurrency","Why must wait() be called in a while loop?","Spurious wakeups, and another thread may grab the condition first. Always re-check the condition after waking."],
+["Concurrency","How is ConcurrentHashMap thread-safe in Java 8+?","CAS to insert into empty bins, synchronized on the first node of a bin for updates, mostly lock-free reads, cooperative resizing. No global lock."],
+// ---- JVM
+["JVM","Stack vs heap?","Stack: per thread, method frames with primitive locals + references, StackOverflowError. Heap: shared, all objects, garbage collected, OutOfMemoryError."],
+["JVM","JVM runtime memory areas?","Shared: Heap, Method area/Metaspace. Per thread: Stack, PC register, Native method stack. \"Mad Hens Steal Popcorn Nightly\"."],
+["JVM","When is an object eligible for GC?","When no chain of references from a GC root (stack locals, statics, active threads, JNI refs) reaches it. Unreachable cycles are collected too."],
+["JVM","Describe the heap generations.","Young (Eden + 2 Survivors) and Old. New objects go to Eden; survivors are copied between S0/S1 and age; old ones are promoted. Minor GC = young, Full GC = whole heap."],
+["JVM","Class loaders and parent delegation?","Bootstrap (core), Platform, Application. A loader asks its parent first, so core classes like java.lang.String can't be replaced."],
+["JVM","Class loading phases?","Load, then Link (Verify, Prepare, Resolve), then Initialize (static blocks run)."],
+["JVM","Common garbage collectors? Default?","Serial, Parallel, G1 (default since Java 9), ZGC and Shenandoah (sub-millisecond pauses). CMS was removed in 14."],
+["JVM","Can Java leak memory? Examples?","Yes: objects still referenced but never used. Static growing collections, unclosed resources, unremoved listeners, ThreadLocals in pools, inner classes holding outer instances."],
+["JVM","PermGen vs Metaspace?","PermGen (before 8): fixed-size heap area for class metadata. Metaspace (8+): native memory that grows dynamically."],
+["JVM","Soft vs weak references?","Soft: cleared only when memory is low (caches). Weak: cleared at the next GC once only weakly reachable (WeakHashMap)."],
+// ---- I/O
+["I/O","Byte streams vs character streams?","Bytes: InputStream/OutputStream for binary data. Chars: Reader/Writer for text, decoded with a charset."],
+["I/O","Which pattern does `new BufferedReader(new FileReader(f))` use?","Decorator: each wrapper adds behaviour (buffering, readLine) behind the same interface."],
+["I/O","Files.readAllLines vs Files.lines?","readAllLines loads everything into a List (small files). lines is a lazy Stream for big files and must be closed (try-with-resources)."],
+["I/O","What is serialVersionUID?","A version stamp for Serializable classes. A mismatch on deserialization throws InvalidClassException. Declare it explicitly."],
+["I/O","transient and static fields in serialization?","Neither is written. transient fields come back as defaults (0/false/null); static fields belong to the class."],
+["I/O","Is a constructor called during deserialization?","Not for the Serializable class. The no-arg constructor of the first NON-serializable superclass is called."],
+["I/O","Scanner vs BufferedReader?","Scanner parses tokens (nextInt) but is slower (1 KB buffer, regex). BufferedReader reads lines fast (8 KB buffer), synchronized, throws IOException."],
+// ---- Modern
+["Modern","What does `record Point(int x, int y)` generate?","private final fields, canonical constructor, accessors `x()`/`y()`, equals, hashCode, toString. Implicitly final; extends java.lang.Record."],
+["Modern","What can't a record do?","Extend a class, declare extra instance fields, be abstract, have setters. It CAN implement interfaces and have static members and methods."],
+["Modern","What is a compact constructor?","A record constructor without a parameter list, used for validation/normalization: `Range { if (lo > hi) throw ...; }`. Fields are assigned afterwards automatically."],
+["Modern","Rules for sealed classes?","`sealed ... permits A, B`. Each permitted subclass must directly extend it and be final, sealed or non-sealed."],
+["Modern","Why no default in a switch over a sealed type?","The compiler knows every permitted subtype, so covering them all is exhaustive. Adding a subtype breaks every incomplete switch at compile time."],
+["Modern","Pattern matching for instanceof?","`if (obj instanceof String s && s.length() > 3)`: test, cast and bind in one step (Java 16)."],
+["Modern","Switch patterns: guards and dominance?","`case Integer i when i > 10 -> ...` adds a guard. More specific cases must come before general ones (else compile error). `case null` handles null."],
+["Modern","What are record patterns?","Deconstruction in patterns: `case Point(int x, int y) -> x + y`, even nested: `case Line(Point(var x1, var y1), Point p2)`."],
+["Modern","Rules for var?","Local variables with an initializer only. Not for fields, parameters or returns; not `var x = null;`; `var l = new ArrayList<>()` gives ArrayList<Object>."],
+["Modern","LTS versions and a headline feature each?","8: lambdas/streams. 11: HttpClient, String methods. 17: sealed classes. 21: virtual threads, pattern matching for switch. 25: instance main, flexible constructors."],
+["Modern","What are sequenced collections (21)?","Common first/last API: `getFirst()`, `getLast()`, `addFirst()`, `removeLast()`, `reversed()` on List, Deque, LinkedHashSet, LinkedHashMap (firstEntry...)."],
+// ---- Design
+["Design","SOLID?","Single responsibility, Open/closed, Liskov substitution, Interface segregation, Dependency inversion."],
+["Design","Classic Liskov violation?","Square extends Rectangle: setting the width also changes the height, so code written for Rectangle breaks. Also Penguin.fly() throwing UnsupportedOperationException."],
+["Design","How does Spring relate to Dependency Inversion?","Services depend on interfaces; the IoC container creates beans and injects implementations (usually via constructor)."],
+["Design","Best way to implement a Singleton?","An enum with one constant: thread-safe, serialization-safe and reflection-safe. The holder idiom is a good lazy alternative."],
+["Design","Why volatile in double-checked locking?","`instance = new X()` can be reordered (assign before construct). Without volatile, another thread may see a half-constructed object."],
+["Design","When to use the Builder pattern?","Many (optional) parameters, readability, immutable results with validation in build(). Avoids telescoping constructors."],
+["Design","Decorator vs Proxy?","Same wrapping structure, different intent. Decorator ADDS behaviour (stackable). Proxy CONTROLS access (lazy loading, security, remoting, AOP)."],
+["Design","Strategy pattern in the JDK?","`Comparator`: interchangeable sorting algorithms passed to `sort`. Also ThreadPoolExecutor rejection policies."],
+["Design","Name 5 patterns used in the JDK.","Decorator (java.io), Adapter (InputStreamReader), Iterator, Factory (Calendar.getInstance, List.of), Builder (StringBuilder), Singleton (Runtime), Template (AbstractList), Proxy (reflect.Proxy)."],
+["Design","Factory vs Builder?","Factory decides WHICH class to instantiate. Builder decides HOW to assemble one complex object step by step."],
+// ---- More APIs
+["More APIs","Which retention lets frameworks read an annotation?","`@Retention(RetentionPolicy.RUNTIME)`. The default (CLASS) is not visible to reflection."],
+["More APIs","getMethods() vs getDeclaredMethods()?","getMethods: PUBLIC methods including inherited. getDeclaredMethods: ALL access levels, declared in this class only."],
+["More APIs","Uses and downsides of reflection?","Uses: Spring DI, Hibernate, JUnit, Jackson, IDEs. Downsides: slower, breaks encapsulation, no compile-time checks, blocked by modules unless opened."],
+["More APIs","Why is java.time better than Date/Calendar?","Immutable and thread-safe, months 1-12, clear separate types (date, time, zone, instant), thread-safe DateTimeFormatter."],
+["More APIs","Period vs Duration?","Period: date-based (years, months, days). Duration: time-based (hours, minutes, seconds, nanos)."],
+["More APIs","How does PreparedStatement prevent SQL injection?","The SQL is compiled with `?` placeholders; parameters are sent separately as DATA, never interpreted as SQL."],
+["More APIs","How to make two JDBC updates atomic?","`con.setAutoCommit(false)`, run both, `con.commit()`; on any exception `con.rollback()`."],
+["More APIs","What is ACID?","Atomicity (all or nothing), Consistency (valid states), Isolation (no interference), Durability (committed data survives crashes)."],
+["More APIs","Dirty vs non-repeatable vs phantom read?","Dirty: reading uncommitted data. Non-repeatable: the same row changes between reads. Phantom: the same query returns new rows."]
+];
+
+// =====================================================================================
+//  DATA: QUIZ  [question, codeOrNull, options[], correctIndex, explanation]
+// =====================================================================================
+const QUIZ = [
+["What does this print?", "System.out.println(1 + 2 + \"3\" + 4 + 5);", ["3345", "15", "12345", "339"], 0, "Left to right: 1+2=3 (int), then \"33\", and once a String appears everything is concatenated."],
+["What does this print?", "Integer a = 128, b = 128;\nSystem.out.println(a == b);", ["true", "false", "compile error", "NullPointerException"], 1, "Autoboxing caches only -128..127. 128 creates two objects; == compares references."],
+["What does test() return?", "static int test() {\n  try { return 1; }\n  finally { return 2; }\n}", ["1", "2", "compile error", "it throws"], 1, "A return inside finally overrides the try's return value."],
+["What is i?", "int i = 0;\ni = i++;", ["0", "1", "2", "undefined"], 0, "i++ yields the old value (0), increments, then the old value is assigned back."],
+["What is the length?", "\"a.b.c\".split(\".\").length", ["3", "0", "1", "5"], 1, "split takes a regex; '.' matches every character, and trailing empty strings are removed."],
+["What does Math.round(-2.5) return?", null, ["-3", "-2", "-2.5", "-2.0"], 1, "Math.round(x) = floor(x + 0.5) = floor(-2.0) = -2."],
+["What happens?", "List.of(1, 2).add(3);", ["[1, 2, 3]", "UnsupportedOperationException", "NullPointerException", "compile error"], 1, "List.of returns an immutable list."],
+["What is the size?", "int[] prim = {1, 2, 3};\nArrays.asList(prim).size()", ["3", "1", "0", "compile error"], 1, "With a primitive array, T becomes int[], so the list holds ONE element: the array."],
+["Parent and Child both declare a field `name`. What does p.name give?", "Parent p = new Child();\nSystem.out.println(p.name);", ["Child's value", "Parent's value", "compile error", "null"], 1, "Fields are not polymorphic; they are resolved by the reference type."],
+["Which overload runs for pick(5)?", "void pick(long x)\nvoid pick(Integer x)\nvoid pick(int... x)", ["pick(long)", "pick(Integer)", "pick(int...)", "ambiguous"], 0, "Exact, then Widening, then Boxing, then Varargs. int widens to long before boxing."],
+["Which of these is NOT a checked exception?", null, ["IOException", "SQLException", "IllegalArgumentException", "InterruptedException"], 2, "IllegalArgumentException extends RuntimeException, so it is unchecked."],
+["HashMap default capacity and load factor?", null, ["10 and 0.5", "16 and 0.75", "16 and 1.0", "32 and 0.75"], 1, "16 buckets; resize (x2) when size exceeds 16 x 0.75 = 12."],
+["A HashMap bucket turns into a tree at how many nodes (table >= 64)?", null, ["4", "8", "16", "64"], 1, "TREEIFY_THRESHOLD = 8 (and MIN_TREEIFY_CAPACITY = 64)."],
+["Which collection keeps elements unique AND in insertion order?", null, ["HashSet", "TreeSet", "LinkedHashSet", "PriorityQueue"], 2, "Hash = Hurry, Linked = Line, Tree = Tidy."],
+["What does this print?", "Stream.of(1, 2, 3).peek(System.out::print);", ["123", "nothing", "1", "compile error"], 1, "No terminal operation, so the lazy pipeline never runs."],
+["Which one evaluates its default lazily?", null, ["orElse", "orElseGet", "both", "neither"], 1, "orElse(x) always evaluates x; orElseGet(supplier) only calls it when empty."],
+["volatile guarantees...", null, ["atomicity", "visibility", "both", "neither"], 1, "volatile = visibility (and ordering) only. x++ on a volatile is still a race."],
+["The most common way to prevent deadlock?", null, ["use more threads", "acquire locks in a consistent global order", "call Thread.yield()", "make fields volatile"], 1, "Lock ordering breaks the circular-wait condition."],
+["Where must wait() be called?", null, ["anywhere", "inside synchronized on the same object", "only inside run()", "only in static methods"], 1, "Otherwise IllegalMonitorStateException. And always in a while loop."],
+["The default garbage collector since Java 9?", null, ["Serial", "Parallel", "G1", "CMS"], 2, "G1 (Garbage-First), region based with predictable pauses. CMS was removed in Java 14."],
+["Where do objects live?", null, ["Stack", "Heap", "Metaspace", "PC register"], 1, "Objects live on the heap; the stack holds references and primitive locals."],
+["A record CAN...", null, ["extend another class", "declare extra instance fields", "implement interfaces", "have setters"], 2, "Records are final, extend java.lang.Record, have only final component fields - but can implement interfaces."],
+["A permitted subclass of a sealed class must be...", null, ["abstract", "final, sealed or non-sealed", "public", "static"], 1, "Exactly one of final / sealed / non-sealed (records and enums are implicitly final)."],
+["The safest Singleton implementation?", null, ["synchronized getInstance()", "an enum with one constant", "a public static field", "clone()"], 1, "Enums are thread-safe, serialization-safe and reflection-safe."],
+["Which pattern does java.io use heavily?", null, ["Singleton", "Decorator", "Observer", "Command"], 1, "new BufferedReader(new InputStreamReader(new FileInputStream(f))) - each wrapper adds behaviour."],
+["To WRITE Integers into a list parameter, declare it as...", null, ["List<? extends Integer>", "List<? super Integer>", "List<?>", "only List<Object>"], 1, "PECS: Consumer Super."],
+["What does this print?", "System.out.println('a' + 'b');", ["ab", "195", "compile error", "a b"], 1, "char + char is int arithmetic: 97 + 98."],
+["What does this print?", "System.out.println(0.1 + 0.2 == 0.3);", ["true", "false", "compile error", "depends on the JVM"], 1, "0.1 + 0.2 = 0.30000000000000004 in binary floating point."],
+["What does this print?", "new BigDecimal(\"2.0\").equals(new BigDecimal(\"2.00\"))", ["true", "false", "compile error", "ArithmeticException"], 1, "BigDecimal.equals compares scale too. Use compareTo(...) == 0."],
+["Which API prevents SQL injection?", null, ["Statement", "PreparedStatement", "String.format", "escaping quotes manually"], 1, "Parameters are bound as data, never parsed as SQL."],
+["To represent '2 years and 3 months' you use...", null, ["Duration", "Period", "Instant", "LocalTime"], 1, "Period is date-based; Duration is time-based."],
+["Which retention must an annotation have so reflection can read it?", null, ["SOURCE", "CLASS", "RUNTIME", "DEFAULT"], 2, "CLASS (the default) keeps it in the .class file but not at runtime."],
+["What happens if you call t.run() instead of t.start()?", null, ["a new thread starts", "it runs on the current thread", "an exception is thrown", "nothing happens"], 1, "run() is a normal method call; only start() creates a new thread."],
+["What is the final size of the set?", "Set<Short> s = new HashSet<>();\nfor (short i = 0; i < 100; i++) {\n  s.add(i);\n  s.remove(i - 1);\n}", ["0", "1", "99", "100"], 3, "i - 1 is an int, boxed to Integer, which never equals a Short - nothing is removed."]
+];
+
+// =====================================================================================
+//  HELPERS
+// =====================================================================================
+const $ = id => document.getElementById(id);
+function esc(s) { return s.replace(/&(?![a-z]+;)/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+function fmt(s) {
+  return esc(s).replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
+}
+function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+
+// tabs
+document.querySelectorAll("nav button").forEach(b => b.addEventListener("click", () => {
+  document.querySelectorAll("nav button").forEach(x => x.classList.toggle("active", x === b));
+  document.querySelectorAll("section.tab").forEach(s => s.classList.toggle("active", s.id === b.dataset.tab));
+}));
+
+// =====================================================================================
+//  MIND MAPS
+// =====================================================================================
+function parseTree(text) {
+  const root = { t: null, c: [], d: -1 }, stack = [root];
+  for (const line of text.split("\n")) {
+    if (!line.trim()) continue;
+    const depth = Math.floor(line.search(/\S/) / 2);
+    const node = { t: line.trim(), c: [], d: depth };
+    while (stack[stack.length - 1].d >= depth) stack.pop();
+    stack[stack.length - 1].c.push(node);
+    stack.push(node);
+  }
+  return root.c;
+}
+function renderNode(node, depth) {
+  const li = document.createElement("li");
+  const label = document.createElement("span");
+  label.className = "node d" + Math.min(depth, 4);
+  label.innerHTML = fmt(node.t);
+  li.appendChild(label);
+  if (node.c.length) {
+    li.classList.add("has-kids");
+    label.dataset.count = node.c.length;
+    label.addEventListener("click", () => li.classList.toggle("collapsed"));
+    const ul = document.createElement("ul");
+    node.c.forEach(ch => ul.appendChild(renderNode(ch, depth + 1)));
+    li.appendChild(ul);
+  }
+  return li;
+}
+let currentMap = Object.keys(MAPS)[0];
+function showMap(name) {
+  currentMap = name;
+  document.querySelectorAll("#mapTopics .chip").forEach(c => c.classList.toggle("active", c.textContent === name));
+  const tree = $("tree");
+  tree.innerHTML = "";
+  parseTree(MAPS[name]).forEach(n => tree.appendChild(renderNode(n, 0)));
+}
+Object.keys(MAPS).forEach(name => {
+  const chip = document.createElement("button");
+  chip.className = "chip";
+  chip.textContent = name;
+  chip.addEventListener("click", () => showMap(name));
+  $("mapTopics").appendChild(chip);
+});
+$("expandBtn").onclick = () => document.querySelectorAll("#tree .has-kids").forEach(li => li.classList.remove("collapsed"));
+$("collapseBtn").onclick = () => document.querySelectorAll("#tree .has-kids").forEach(li => li.classList.add("collapsed"));
+$("recallBtn").onclick = () => {
+  document.querySelectorAll("#tree .has-kids").forEach(li => li.classList.add("collapsed"));
+  const top = document.querySelector("#tree > li");
+  if (top) top.classList.remove("collapsed");     // show only the first level of branches
+};
+showMap(currentMap);
+
+// =====================================================================================
+//  FLASHCARDS
+// =====================================================================================
+const STORE = "javaRevision.known.v1";
+let known = new Set(JSON.parse(localStorage.getItem(STORE) || "[]"));
+const topics = ["All topics", ...new Set(CARDS.map(c => c[0]))];
+topics.forEach(t => { const o = document.createElement("option"); o.textContent = t; $("deckSelect").appendChild(o); });
+let deck = [], pos = 0;
+
+function buildDeck(doShuffle) {
+  const topic = $("deckSelect").value;
+  deck = CARDS.filter(c => topic === "All topics" || c[0] === topic)
+              .filter(c => !$("onlyUnknown").checked || !known.has(c[1]));
+  if (doShuffle) shuffle(deck);
+  pos = 0;
+  showCard();
+}
+function showCard() {
+  const card = $("card");
+  card.classList.remove("flipped");
+  const topic = $("deckSelect").value;
+  const all = CARDS.filter(c => topic === "All topics" || c[0] === topic);
+  const k = all.filter(c => known.has(c[1])).length;
+  $("progressBar").style.width = (all.length ? 100 * k / all.length : 0) + "%";
+  $("progressText").textContent = k + " / " + all.length + " known";
+  if (!deck.length) {
+    $("cardTag").textContent = "done";
+    $("cardQ").innerHTML = "&#127881; No cards left in this selection!";
+    $("cardA").innerHTML = "";
+    card.classList.remove("known");
+    return;
+  }
+  const [t, q, a] = deck[pos];
+  $("cardTag").textContent = t + "  ·  " + (pos + 1) + "/" + deck.length;
+  $("cardQ").innerHTML = fmt(q);
+  $("cardA").innerHTML = fmt(a);
+  card.classList.toggle("known", known.has(q));
+}
+function move(step) { if (deck.length) { pos = (pos + step + deck.length) % deck.length; showCard(); } }
+function mark(isKnown) {
+  if (!deck.length) return;
+  const q = deck[pos][1];
+  if (isKnown) known.add(q); else known.delete(q);
+  localStorage.setItem(STORE, JSON.stringify([...known]));
+  if (isKnown && $("onlyUnknown").checked) { deck.splice(pos, 1); if (pos >= deck.length) pos = 0; showCard(); }
+  else move(1);
+}
+$("card").onclick = () => $("card").classList.toggle("flipped");
+$("prevBtn").onclick = () => move(-1);
+$("nextBtn").onclick = () => move(1);
+$("gotBtn").onclick = () => mark(true);
+$("againBtn").onclick = () => mark(false);
+$("shuffleBtn").onclick = () => buildDeck(true);
+$("deckSelect").onchange = () => buildDeck(false);
+$("onlyUnknown").onchange = () => buildDeck(false);
+$("resetBtn").onclick = () => { if (confirm("Forget all 'known' marks?")) { known.clear(); localStorage.removeItem(STORE); buildDeck(false); } };
+document.addEventListener("keydown", e => {
+  if (!$("cards").classList.contains("active") || e.target.tagName === "SELECT") return;
+  if (e.code === "Space") { e.preventDefault(); $("card").classList.toggle("flipped"); }
+  else if (e.key === "ArrowRight") move(1);
+  else if (e.key === "ArrowLeft") move(-1);
+  else if (e.key === "1") mark(false);
+  else if (e.key === "2") mark(true);
+});
+buildDeck(false);
+
+// =====================================================================================
+//  QUIZ
+// =====================================================================================
+let order = [], qi = 0, score = 0, mistakes = [];
+function startQuiz() { order = shuffle([...QUIZ.keys()]); qi = 0; score = 0; mistakes = []; showQuestion(); }
+function showQuestion() {
+  const box = $("quizBox");
+  if (qi >= order.length) {
+    const pct = Math.round(100 * score / order.length);
+    box.innerHTML = `<div class="score">${score} / ${order.length} (${pct}%)</div>
+      <p>${pct >= 85 ? "&#128293; Excellent - interview ready!" : pct >= 60 ? "&#128077; Good. Review the ones you missed:" : "&#128218; Revise the chapters below and try again in a day or two:"}</p>
+      ${mistakes.length ? "<ul>" + mistakes.map(i => `<li>${fmt(QUIZ[i][0])} - <b>${fmt(QUIZ[i][2][QUIZ[i][3]])}</b><br><span class="hint">${fmt(QUIZ[i][4])}</span></li>`).join("") + "</ul>" : ""}
+      <button class="btn primary" id="restartBtn">Restart (new order)</button>`;
+    $("restartBtn").onclick = startQuiz;
+    return;
+  }
+  const [q, code, opts, correct, why] = QUIZ[order[qi]];
+  box.innerHTML = `<div class="hint">Question ${qi + 1} of ${order.length} &middot; score ${score}</div>
+    <h3 style="margin:6px 0">${fmt(q)}</h3>
+    ${code ? `<div class="qcode">${esc(code)}</div>` : ""}
+    <div id="opts"></div>
+    <div class="why" id="why"><b>Why:</b> ${fmt(why)}</div>
+    <div class="controls" style="justify-content:flex-end"><button class="btn primary" id="nextQ" style="display:none">Next &#8594;</button></div>`;
+  opts.forEach((o, i) => {
+    const b = document.createElement("button");
+    b.className = "opt";
+    b.innerHTML = String.fromCharCode(65 + i) + ".  " + fmt(o);
+    b.onclick = () => {
+      document.querySelectorAll(".opt").forEach((x, j) => { x.disabled = true; if (j === correct) x.classList.add("correct"); });
+      if (i === correct) score++; else { b.classList.add("wrong"); mistakes.push(order[qi]); }
+      $("why").classList.add("show");
+      $("nextQ").style.display = "inline-block";
+      $("nextQ").focus();
+    };
+    $("opts").appendChild(b);
+  });
+  $("nextQ").onclick = () => { qi++; showQuestion(); };
+}
+startQuiz();
+</script>
+</body>
+</html>
